@@ -1,4 +1,4 @@
-# profiler — Cocos 运行时性能监控面板
+# cc-profiler — Cocos 运行时性能监控面板
 
 > 注册式、内核引擎无关的 Cocos 性能监控面板库。`core/` 纯 TS 零依赖，渲染层绑 Cocos。
 
@@ -20,11 +20,15 @@
 
 宿主侧只需用 `register` / `rawSection` 把自己的业务指标喂进来（显存、节点数、网络状态…），内核自动纳入勾选 / 持久化 / 渲染。
 
+## 接入
+
+本库通过扩展 `asset-db.mount` 挂成独立 db 根 `db://cc-profiler`（见 `package.json`），业务侧直接 import，无需放进项目 `assets/`：
+
 ## 用法
 
 ```ts
-import { profiler } from './core/registry';
-import { showProfiler, hideProfiler } from './cocos/cocos-profiler';
+import { profiler } from 'db://cc-profiler/core/registry';
+import { showProfiler, hideProfiler } from 'db://cc-profiler/cocos/cocos-profiler';
 
 // 结构化指标
 profiler.register({
@@ -73,15 +77,18 @@ profiler.setStorage(s: StorageAdapter): void;   // 持久化注入，core 默认
 ## 目录
 
 ```text
-profiler/
-├── core/                  # 纯 TS，零引擎依赖
-│   ├── registry.ts       # 注册表 + list/setEnabled/sample/snapshot + 单例 profiler
-│   ├── metric.ts         # Metric / Row 接口 + Averager 平均窗口
-│   └── storage.ts        # StorageAdapter 接口 + MemoryStorage 默认实现
-├── cocos/                 # Cocos 适配
-│   ├── cocos-profiler.ts # 装配：director hook 采集 + 驱动 + 引擎指标 + show/hide
-│   ├── panel.ts          # 面板渲染（场景 Canvas 子节点 + RichText）
-│   └── local-storage.ts  # StorageAdapter 的 window.localStorage 实现
+cc-profiler/
+├── lib/                       # 挂成 db://cc-profiler（asset-db.mount ./lib）
+│   ├── core/                  # 纯 TS，零引擎依赖
+│   │   ├── registry.ts       # 注册表 + list/setEnabled/sample/snapshot + 单例 profiler
+│   │   ├── metric.ts         # Metric / Row 接口 + Averager 平均窗口
+│   │   └── storage.ts        # StorageAdapter 接口 + MemoryStorage 默认实现
+│   └── cocos/                 # Cocos 适配
+│       ├── cocos-profiler.ts # 装配：director hook 采集 + 驱动 + 引擎指标 + show/hide
+│       ├── panel.ts          # 面板渲染（场景 Canvas 子节点 + RichText）
+│       └── local-storage.ts  # StorageAdapter 的 window.localStorage 实现
+├── package.json               # 扩展声明 + asset-db.mount
+├── LICENSE                    # Apache 2.0
 └── README.md
 ```
 

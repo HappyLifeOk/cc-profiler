@@ -8,7 +8,7 @@
     "asset-db": {
       "mount": {
         "path": "./lib",
-        "readonly": false
+        "readonly": true
       }
     }
   }
