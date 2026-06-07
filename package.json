@@ -1,0 +1,15 @@
+{
+  "package_version": 2,
+  "version": "1.0.0",
+  "name": "cc-profiler",
+  "description": "Cocos 运行时性能监控面板 — 注册式、内核引擎无关，core/ 纯 TS 零依赖，挂成 db://profiler 独立库",
+  "editor": ">=3.8.0",
+  "contributions": {
+    "asset-db": {
+      "mount": {
+        "path": "./lib",
+        "readonly": false
+      }
+    }
+  }
+}
