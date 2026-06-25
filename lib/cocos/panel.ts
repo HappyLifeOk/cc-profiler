@@ -79,6 +79,12 @@ export class ProfilerPanel {
         root.setSiblingIndex(canvasNode.children.length - 1);
         widget.updateAlignment();
 
+        // 输入透明：RichText.onEnable 会注册 TOUCH_END listener 处理 <on click> 标签，
+        // 在 Cocos 3.x 输入分发里"命中即吃掉"，会挡住下层按钮。覆写 hitTest 返回 false 让命中测试跳过本面板
+        const noHit = (): boolean => false;
+        rootUT.hitTest = noHit;
+        richUT.hitTest = noHit;
+
         this._root = root;
         this._rich = rich;
         this._bg = bg;
