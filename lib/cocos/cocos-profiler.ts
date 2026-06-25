@@ -196,3 +196,26 @@ export function hideProfiler(): void {
 export function ensureEngineMetrics(): void {
     profilerCocos.ensureSetup();
 }
+
+let _toolbarBound = false;
+
+/**
+ * 联动 Cocos Creator 预览页 toolbar 的 "Show FPS" 按钮（#btn-show-fps，源自
+ * builtin/preview/static/views/toolbar.ejs）：按下显示本面板，再按隐藏。
+ * 仅在浏览器预览环境生效；非浏览器（jsb/native）或按钮不存在时静默跳过。幂等。
+ */
+export function bindPreviewToolbarToggle(): void {
+    if (_toolbarBound) return;
+    if (typeof document === 'undefined') return;
+    const btn = document.getElementById('btn-show-fps');
+    if (!btn) return;
+    _toolbarBound = true;
+
+    let showing = btn.classList.contains('checked');
+    if (showing) showProfiler();
+    btn.addEventListener('click', () => {
+        showing = !showing;
+        if (showing) showProfiler();
+        else hideProfiler();
+    });
+}
