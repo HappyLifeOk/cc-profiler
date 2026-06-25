@@ -17,6 +17,8 @@ export interface Metric {
     order?: number;
     /** 平均窗口（ms）。设了则显示窗口内均值、抹平抖动；缺省显示瞬时值。 */
     average?: number;
+    /** 注册时是否默认启用（缺省 true）。仅当用户从未在 GM/面板上动过本项时生效，动过即以用户选择为准。 */
+    defaultEnabled?: boolean;
 }
 
 /** snapshot 产出的一行渲染数据。renderer 据此画一行，warn 决定是否标红。 */

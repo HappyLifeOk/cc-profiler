@@ -79,13 +79,13 @@ class ProfilerCocos {
         const mb = (v: number): string => v.toFixed(1);
         profiler.register({ id: 'fps', label: '帧率', get: () => this._fps, warn: (v) => v < 30, format: int, order: 1 });
         profiler.register({ id: 'frame', label: '帧耗时(ms)', get: () => t.frame, average: REFRESH_MS, warn: (v) => v > 33, order: 2 });
-        profiler.register({ id: 'draws', label: '绘制调用', get: () => stat.draws, average: REFRESH_MS, format: int, order: 3 });
-        profiler.register({ id: 'instances', label: '实例数', get: () => stat.instances, average: REFRESH_MS, format: int, order: 4 });
-        profiler.register({ id: 'tricount', label: '三角面数', get: () => stat.tris, average: REFRESH_MS, format: int, order: 5 });
-        profiler.register({ id: 'logic', label: '逻辑耗时(ms)', get: () => t.logic, average: REFRESH_MS, order: 6 });
-        profiler.register({ id: 'physics', label: '物理耗时(ms)', get: () => t.physics, average: REFRESH_MS, order: 7 });
-        profiler.register({ id: 'render', label: '渲染耗时(ms)', get: () => t.render, average: REFRESH_MS, order: 8 });
-        profiler.register({ id: 'present', label: '提交耗时(ms)', get: () => t.present, average: REFRESH_MS, order: 9 });
+        profiler.register({ id: 'logic', label: '逻辑耗时(ms)', get: () => t.logic, average: REFRESH_MS, order: 3 });
+        profiler.register({ id: 'physics', label: '物理耗时(ms)', get: () => t.physics, average: REFRESH_MS, order: 4, defaultEnabled: false });
+        profiler.register({ id: 'render', label: '渲染耗时(ms)', get: () => t.render, average: REFRESH_MS, order: 5 });
+        profiler.register({ id: 'present', label: '提交耗时(ms)', get: () => t.present, average: REFRESH_MS, order: 6 });
+        profiler.register({ id: 'draws', label: '绘制调用', get: () => stat.draws, average: REFRESH_MS, format: int, order: 7 });
+        profiler.register({ id: 'instances', label: '实例数', get: () => stat.instances, average: REFRESH_MS, format: int, order: 8, defaultEnabled: false });
+        profiler.register({ id: 'tricount', label: '三角面数', get: () => stat.tris, average: REFRESH_MS, format: int, order: 9 });
         profiler.register({ id: 'textureMemory', label: '纹理显存(M)', get: () => stat.texMB, format: mb, order: 10 });
         profiler.register({ id: 'bufferMemory', label: '缓冲显存(M)', get: () => stat.bufMB, format: mb, order: 11 });
     }

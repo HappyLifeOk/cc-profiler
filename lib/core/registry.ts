@@ -73,6 +73,8 @@ class RawEntry implements Entry {
 export class ProfilerRegistry {
     private _entries = new Map<string, Entry>();
     private _disabled = new Set<string>();
+    // 用户在 GM/面板上动过的项；用于区分"默认值生效" vs "用户已选择"，避免下次启动用默认值覆盖用户操作
+    private _touched = new Set<string>();
     private _storage: StorageAdapter = new MemoryStorage();
     private _showing = false;
 
@@ -89,11 +91,20 @@ export class ProfilerRegistry {
     /** 注册结构化指标。重复 id 覆盖。 */
     public register(metric: Metric): void {
         this._entries.set(metric.id, new MetricEntry(metric, performance.now()));
+        this._applyInitialEnabled(metric.id, metric.defaultEnabled !== false);
     }
 
-    /** 注册文本段（复杂业务展示）。order 缺省 100。重复 id 覆盖。 */
-    public rawSection(id: string, provider: () => string, order: number = DEFAULT_ORDER): void {
+    /** 注册文本段（复杂业务展示）。order 缺省 100，defaultEnabled 缺省 true。重复 id 覆盖。 */
+    public rawSection(id: string, provider: () => string, order: number = DEFAULT_ORDER, defaultEnabled: boolean = true): void {
         this._entries.set(id, new RawEntry(id, provider, order));
+        this._applyInitialEnabled(id, defaultEnabled);
+    }
+
+    // 注册时按声明的默认开关态初始化勾选；用户已 touch 过则保持其选择
+    private _applyInitialEnabled(id: string, defaultEnabled: boolean): void {
+        if (this._touched.has(id)) return;
+        if (defaultEnabled) this._disabled.delete(id);
+        else this._disabled.add(id);
     }
 
     /** 列出所有注册项及启用态（GM 面板一个循环生成勾选）。 */
@@ -103,10 +114,11 @@ export class ProfilerRegistry {
         return out;
     }
 
-    /** 开关某项显示；持久化。 */
+    /** 开关某项显示；持久化。一旦调用即视为用户已选择，下次启动不再被默认值覆盖。 */
     public setEnabled(id: string, on: boolean): void {
         if (on) this._disabled.delete(id);
         else this._disabled.add(id);
+        this._touched.add(id);
         this._saveState();
     }
 
@@ -150,9 +162,11 @@ export class ProfilerRegistry {
     }
 
     private _saveState(): void {
-        const ids: string[] = [];
-        this._disabled.forEach((id) => ids.push(id));
-        this._storage.save(STATE_KEY, JSON.stringify(ids));
+        const disabled: string[] = [];
+        this._disabled.forEach((id) => disabled.push(id));
+        const touched: string[] = [];
+        this._touched.forEach((id) => touched.push(id));
+        this._storage.save(STATE_KEY, JSON.stringify({ disabled, touched }));
     }
 
     private _loadState(): void {
@@ -160,11 +174,23 @@ export class ProfilerRegistry {
         if (!raw) return;
         // storage 内容由宿主平台持有、可能被外部改坏 —— 解析失败回退全开，不连累内核构造。
         try {
-            const ids = JSON.parse(raw) as string[];
+            const parsed = JSON.parse(raw) as unknown;
             this._disabled.clear();
-            ids.forEach((id) => this._disabled.add(id));
+            this._touched.clear();
+            // 旧格式（字符串数组）= disabled 列表；视作用户已 touch 过这些项，新增的 defaultEnabled 不再覆盖
+            if (Array.isArray(parsed)) {
+                (parsed as string[]).forEach((id) => {
+                    this._disabled.add(id);
+                    this._touched.add(id);
+                });
+                return;
+            }
+            const obj = parsed as { disabled?: string[]; touched?: string[]; };
+            if (obj.disabled) obj.disabled.forEach((id) => this._disabled.add(id));
+            if (obj.touched) obj.touched.forEach((id) => this._touched.add(id));
         } catch {
             this._disabled.clear();
+            this._touched.clear();
         }
     }
 }
