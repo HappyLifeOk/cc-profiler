@@ -1,3 +1,6 @@
+// Copyright (c) cc-profiler contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // profiler — cocos/cocos-profiler.ts
 // Cocos 适配层装配：director hook 采集引擎指标 + 驱动 core 采样 + 面板刷新 + 平台存储注入。
 // 业务层通过 showProfiler / hideProfiler 进出，不直接碰 core 渲染细节。
@@ -53,7 +56,7 @@ class ProfilerCocos {
 
     // 存储 / 指标注册各只做一次（show 可多次开关，注册幂等）
 
-    /** 只装配（存储注入 + 引擎指标注册），不显示面板。GM 构建勾选列表前调，幂等。 */
+    /** 只装配（存储注入 + 引擎指标注册），不显示面板。集成层构建勾选列表前可先调一次，幂等。 */
     public ensureSetup(): void {
         this._ensureStorage();
         this._ensureMetrics();
@@ -192,7 +195,7 @@ export function hideProfiler(): void {
     profilerCocos.hide();
 }
 
-/** 只装配（存储 + 引擎指标），不显示面板。供 GM 构建勾选列表时调，幂等。 */
+/** 只装配（存储 + 引擎指标），不显示面板。供集成层构建勾选列表时调，幂等。 */
 export function ensureEngineMetrics(): void {
     profilerCocos.ensureSetup();
 }

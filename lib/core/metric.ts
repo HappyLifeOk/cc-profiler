@@ -1,3 +1,6 @@
+// Copyright (c) cc-profiler contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // profiler — core/metric.ts
 // 纯 TS，零引擎依赖。指标模型 + 平均窗口计数器。
 
@@ -31,7 +34,7 @@ export interface Row {
     warn: boolean;
 }
 
-/** 平均窗口计数器：窗口内累积求均值，超窗口翻篇。并入原 counter.ts / perf-counter.ts 的平均逻辑。 */
+/** 平均窗口计数器：窗口内累积求均值，超窗口翻篇。 */
 export class Averager {
     private _value = 0;
     private _avg = 0;

@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs / temp
+*.log
+*.tmp
+node_modules/
+
+# Cocos Creator 工程产物（本插件不应该出现这些；万一误带入也忽略掉）
+library/
+local/
+temp/
+build/
+.cache/
+
+# 私有草稿 / 笔记
+*.draft.md
+论坛分享.md
+NOTES.md

@@ -2,7 +2,24 @@
   "package_version": 2,
   "version": "1.0.0",
   "name": "cc-profiler",
-  "description": "Cocos 运行时性能监控面板 — 注册式、内核引擎无关，core/ 纯 TS 零依赖，挂成 db://profiler 独立库",
+  "description": "Cocos Creator 3.x 运行时性能监控面板 — 注册式、内核引擎无关，core 纯 TS 零依赖，挂成 db://cc-profiler 独立库",
+  "license": "Apache-2.0",
+  "author": "Fu_Rao",
+  "keywords": [
+    "cocos",
+    "cocos-creator",
+    "cocos-creator-3",
+    "profiler",
+    "performance",
+    "fps",
+    "monitor",
+    "debug",
+    "extension"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/Fu_Rao/cc-profiler.git"
+  },
   "editor": ">=3.8.0",
   "contributions": {
     "asset-db": {

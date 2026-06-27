@@ -1,3 +1,6 @@
+// Copyright (c) cc-profiler contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // profiler — cocos/local-storage.ts
 // StorageAdapter 的浏览器实现：直接用 window.localStorage（不依赖任何引擎 / 平台 SDK）。
 

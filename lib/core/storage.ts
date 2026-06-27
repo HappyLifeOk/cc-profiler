@@ -1,3 +1,6 @@
+// Copyright (c) cc-profiler contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // profiler — core/storage.ts
 // 持久化抽象。core 默认内存实现（开箱即用）；宿主可注入平台实现，core 不绑任何平台。
 

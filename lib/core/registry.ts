@@ -1,3 +1,6 @@
+// Copyright (c) cc-profiler contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // profiler — core/registry.ts
 // 注册表内核：注册指标 / 文本段、统一勾选、采样驱动、产出渲染数据。零引擎依赖。
 
@@ -130,7 +133,7 @@ export class ProfilerRegistry {
         return this._showing;
     }
 
-    /** 渲染层开关面板时同步状态（showStats / hideStats 在 cocos 层，这里只记状态）。 */
+    /** 渲染层开关面板时同步状态（showProfiler / hideProfiler 在 cocos 适配层，这里只记状态）。 */
     public markShowing(on: boolean): void {
         this._showing = on;
     }
