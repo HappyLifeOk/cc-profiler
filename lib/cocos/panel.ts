@@ -4,10 +4,12 @@
 // profiler — cocos/panel.ts
 // 渲染层（绑 Cocos）。自建独立 Canvas + Camera + Layers.PROFILER 层，
 // 渲染层级凌驾于宿主任何 Canvas 之上，物理隔离不被业务 UI 遮挡。
-// 消费 core 的 Row[]，单 RichText 渲染、warn 行标红。
-// 不滚动、不遮挡点击、不换行：宽度固定避免数字波动抖动，高度按行数动态撑开，每条 Row 恒占一行。
+// 文本走 Label CHAR 池：多行 Label 共享字符 atlas batch 成单 drawcall，开销稳定可预期。
 
-import { Node, UITransform, RichText, Widget, Color, Graphics, HorizontalTextAlignment, Canvas, Camera, Layers, director, view } from 'cc';
+import {
+    Camera, Canvas, Color, Graphics, HorizontalTextAlignment, Label, Layers, Node,
+    UITransform, Widget, director, view,
+} from 'cc';
 import { Row } from '../core/metric';
 
 const PANEL_W = 360;   // 容器固定宽（含内边距）：按"标签 + 数值"最长行预留缓冲，避免数字波动时容器宽抖动
@@ -16,14 +18,15 @@ const FONT = 24;       // 字号
 const PAD = 12;        // 内边距
 const LEADING = LINE_H - FONT;  // 单行 lineHeight 框比字形高出的 leading；只出现在最后一行下方，需补偿对齐
 const CAMERA_PRIORITY = (1 << 30) + 100;   // 默认 UI Camera priority = 1<<30；+100 确保面板凌驾于业务 camera 之上
-const COLOR_NORMAL = 'ffffff';
-const COLOR_WARN = 'ff5555';
+const COLOR_NORMAL = new Color(255, 255, 255, 255);
+const COLOR_WARN = new Color(255, 85, 85, 255);
+const BG_FILL = new Color(0, 0, 0, 160);
 
-/** 性能面板：自建 Canvas + Camera 独立渲染。纯展示，不碰数据采集，不依赖宿主框架。 */
+/** 性能面板：自建 Canvas + Camera 独立渲染，文本走 Label CHAR 池。纯展示，不碰数据采集，不依赖宿主框架。 */
 export class ProfilerPanel {
     private _cnvRoot: Node = null;   // 自建 Canvas 节点（hide 时销毁，子节点跟着死）
-    private _root: Node = null;
-    private _rich: RichText = null;
+    private _root: Node = null;      // 面板容器
+    private _lines: Label[] = [];    // 行级 Label 池：每行一个 Label CHAR，逐行复用避免节点抖动
     private _bg: Graphics = null;
 
     public isShowing(): boolean {
@@ -39,13 +42,73 @@ export class ProfilerPanel {
             return;
         }
 
-        // 关键：Camera 必须放在 Canvas 节点的【子节点】上，不能跟 Canvas 同节点。
-        // 原因：Canvas._onResizeCamera() 会调 cameraComponent.node.setWorldPosition(canvas.x, canvas.y, 1000)。
-        // 同节点 → camera 把自己（Canvas 节点）z 拉到 1000，UI 子节点世界 z=1000 等于 camera z，落在 near 内被裁掉，画面全黑
+        const cnvNode = this._createCanvasRoot();
+        this._buildPanel(cnvNode);
 
-        // Canvas 节点：手动配 UITransform.size = visibleSize、position 在屏幕中心
-        // 用 visibleSize 不是 designResolutionSize——后者是策划设计分辨率，fit mode 让实际可见区域可能更大/更小，
-        // 不用 visibleSize 的话 Widget bottom=10 算出的"父节点底"对不上真实屏幕底，面板就漂到中间去了
+        // 一次性 addChild 入场景：所有组件 onLoad/onEnable 一起触发，Canvas 拿到已绑定的 cameraComponent 自动 alignWithScreen
+        scene.addChild(cnvNode);
+        // 跨场景持久：标记为 persist root node，切场景时引擎不会销毁本节点，无需手动重挂
+        director.addPersistRootNode(cnvNode);
+        const widget = this._root.getComponent(Widget);
+        if (widget) widget.updateAlignment();
+
+        this._cnvRoot = cnvNode;
+        // 初始背景：先画一行高度，避免首次 render 之前面板视觉为空
+        const h = PAD * 2 + LINE_H - LEADING;
+        this._bg.clear();
+        this._bg.fillColor = BG_FILL;
+        this._bg.rect(0, 0, PANEL_W, h);
+        this._bg.fill();
+    }
+
+    public hide(): void {
+        if (this._cnvRoot && this._cnvRoot.isValid) {
+            // persist root 列表持有节点引用，destroy 前先移除避免引用泄漏
+            director.removePersistRootNode(this._cnvRoot);
+            this._cnvRoot.destroy();
+        }
+        this._cnvRoot = null;
+        this._root = null;
+        this._lines = [];
+        this._bg = null;
+    }
+
+    /** 把 Row[] 渲染上去：池化 Label CHAR，逐行设 string + color，从顶向下排列；按行数撑 root 高度并重绘背景。 */
+    public render(rows: Row[]): void {
+        if (!this._root || !this._root.isValid) return;
+
+        // 扩容
+        while (this._lines.length < rows.length) {
+            this._lines.push(this._createLine());
+        }
+        // 缩容（多余 Label 销毁）
+        while (this._lines.length > rows.length) {
+            const label = this._lines.pop();
+            if (label && label.node.isValid) label.node.destroy();
+        }
+
+        const N = rows.length;
+        const h = PAD * 2 + N * LINE_H - LEADING;
+        const rootUT = this._root.getComponent(UITransform);
+        if (rootUT) rootUT.setContentSize(PANEL_W, h);
+
+        // 填内容 + 位置（Label anchor (0, 1)：position 是左上角；从顶向下依次排列）
+        rows.forEach((r, i) => {
+            const label = this._lines[i];
+            label.string = r.text;
+            label.color = r.warn ? COLOR_WARN : COLOR_NORMAL;
+            label.node.setPosition(PAD, h - PAD - i * LINE_H, 0);
+        });
+
+        // 重绘背景：BG_FILL 是模块级 Color 实例，避免每帧 new
+        this._bg.clear();
+        this._bg.fillColor = BG_FILL;
+        this._bg.rect(0, 0, PANEL_W, h);
+        this._bg.fill();
+    }
+
+    // 自建 Canvas + Camera：拆分到独立子节点，避免 Canvas._onResizeCamera 把 z=1000 拉到同节点导致 UI 被 near plane 裁掉
+    private _createCanvasRoot(): Node {
         const visibleSize = view.getVisibleSize();
         const cnvNode = new Node('ProfilerCanvas');
         cnvNode.layer = Layers.Enum.PROFILER;
@@ -53,7 +116,6 @@ export class ProfilerPanel {
         cnvUT.setContentSize(visibleSize.width, visibleSize.height);
         cnvNode.setPosition(visibleSize.width / 2, visibleSize.height / 2, 0);
 
-        // Camera 独立子节点：Canvas._onResizeCamera 把它放到 (canvasX, canvasY, 1000) 看 -Z
         const camNode = new Node('ProfilerCamera');
         camNode.layer = Layers.Enum.PROFILER;
         camNode.parent = cnvNode;
@@ -67,17 +129,21 @@ export class ProfilerPanel {
 
         const cnv = cnvNode.addComponent(Canvas);
         cnv.cameraComponent = cam;
+        return cnvNode;
+    }
 
-        // 面板容器：贴左下、宽度固定、高度按行数增长（anchor(0,0) → 向上撑开）
+    // 面板容器：Container + Graphics 背景 + Widget 贴左下；行 Label 在 render 时按需池化
+    private _buildPanel(cnvNode: Node): void {
         const root = new Node('Container');
         root.layer = Layers.Enum.PROFILER;
         root.parent = cnvNode;
         const rootUT = root.addComponent(UITransform);
         rootUT.setContentSize(PANEL_W, PAD * 2 + LINE_H);
         rootUT.setAnchorPoint(0, 0);
+        rootUT.hitTest = (): boolean => false;   // 输入透明：覆盖区域 click 穿透到下层
 
         const bg = root.addComponent(Graphics);
-        bg.fillColor = new Color(0, 0, 0, 160);
+        bg.fillColor = BG_FILL;
 
         const widget = root.addComponent(Widget);
         widget.isAlignLeft = true;
@@ -86,83 +152,26 @@ export class ProfilerPanel {
         widget.bottom = 10;
         widget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
 
-        // RichText 子节点：anchor(0,0) 贴底左，左下角偏 PAD 留出内边距
-        const richNode = new Node('rich');
-        richNode.layer = Layers.Enum.PROFILER;
-        richNode.parent = root;
-        const richUT = richNode.addComponent(UITransform);
-        richUT.setContentSize(PANEL_W - PAD * 2, LINE_H);
-        richUT.setAnchorPoint(0, 0);
-        // 整体下移 LEADING，使最后一行字形底部对齐到 y=PAD（与顶部 PAD 视觉对称）
-        richNode.setPosition(PAD, PAD - LEADING, 0);
-        const rich = richNode.addComponent(RichText);
-        rich.fontSize = FONT;
-        rich.lineHeight = LINE_H;
-        // 不设 maxWidth：禁止自动换行，每条 Row 一行；容器宽度恒定 PANEL_W，文本溢出截断（实际不会超）
-        rich.horizontalAlign = HorizontalTextAlignment.LEFT;
-        rich.string = '';
-
-        // 输入透明：RichText.onEnable 会注册 TOUCH_END listener 处理 <on click> 标签，
-        // 在 Cocos 3.x 输入分发里"命中即吃掉"，会挡住下层按钮。覆写 hitTest 返回 false 让命中测试跳过本面板
-        const noHit = (): boolean => false;
-        rootUT.hitTest = noHit;
-        richUT.hitTest = noHit;
-
-        // 一次性 addChild 入场景：所有组件 onLoad/onEnable 一起触发，Canvas 拿到已绑定的 cameraComponent 自动 alignWithScreen
-        scene.addChild(cnvNode);
-        // 跨场景持久：标记为 persist root node，切场景时引擎不会销毁本节点，无需手动重挂
-        director.addPersistRootNode(cnvNode);
-        widget.updateAlignment();
-
-        this._cnvRoot = cnvNode;
         this._root = root;
-        this._rich = rich;
         this._bg = bg;
-        this._resize(LINE_H);
+        this._lines = [];
     }
 
-    public hide(): void {
-        if (this._cnvRoot && this._cnvRoot.isValid) {
-            // persist root 列表持有节点引用，destroy 前先移除避免引用泄漏
-            director.removePersistRootNode(this._cnvRoot);
-            this._cnvRoot.destroy();
-        }
-        this._cnvRoot = null;
-        this._root = null;
-        this._rich = null;
-        this._bg = null;
-    }
-
-    /** 把 Row[] 渲染成富文本：每行包 color 标签（warn 红、正常白）。宽度恒定，高度按行数撑开。 */
-    public render(rows: Row[]): void {
-        if (!this._rich || !this._rich.isValid) return;
-        const lines: string[] = [];
-        rows.forEach((r) => {
-            const color = r.warn ? COLOR_WARN : COLOR_NORMAL;
-            lines.push(`<color=#${color}>${r.text}</color>`);
-        });
-        this._rich.string = lines.join('\n');
-
-        // RichText.string setter 内部同步执行 layout，把 node UITransform 调到实际渲染尺寸；只取高度
-        const richUT = this._rich.node.getComponent(UITransform);
-        const richH = richUT == null ? LINE_H : richUT.contentSize.height;
-        this._resize(richH);
-    }
-
-    /** 按行数撑开 root 高度 + 重绘背景。宽度恒定 PANEL_W，anchor(0,0) + Widget bottom-left 保证向上展开。 */
-    private _resize(richHeight: number): void {
-        if (!this._root || !this._root.isValid) return;
-        const w = PANEL_W;
-        // 减去 LEADING：底部 leading 已经通过 rich 下移消除，顶部 leading 不存在（首行字形贴 lineHeight 框上沿）
-        const h = PAD * 2 + richHeight - LEADING;
-        const ut = this._root.getComponent(UITransform);
-        if (ut == null) return;
-        ut.setContentSize(w, h);
-
-        if (this._bg == null) return;
-        this._bg.clear();
-        this._bg.fillColor = new Color(0, 0, 0, 160);
-        this._bg.rect(0, 0, w, h);
-        this._bg.fill();
+    // 创建一行 Label：CHAR 缓存让多个 Label 共享同一字符 atlas → batch 成 1 个 drawcall
+    private _createLine(): Label {
+        const node = new Node('line');
+        node.layer = Layers.Enum.PROFILER;
+        node.parent = this._root;
+        const ut = node.addComponent(UITransform);
+        ut.setContentSize(PANEL_W - PAD * 2, LINE_H);
+        ut.setAnchorPoint(0, 1);
+        ut.hitTest = (): boolean => false;
+        const label = node.addComponent(Label);
+        label.fontSize = FONT;
+        label.lineHeight = LINE_H;
+        label.cacheMode = Label.CacheMode.CHAR;
+        label.horizontalAlign = HorizontalTextAlignment.LEFT;
+        label.string = '';
+        return label;
     }
 }

@@ -54,6 +54,7 @@ class ProfilerCocos {
         return this._panel.isShowing();
     }
 
+
     // 存储 / 指标注册各只做一次（show 可多次开关，注册幂等）
 
     /** 只装配（存储注入 + 引擎指标注册），不显示面板。集成层构建勾选列表前可先调一次，幂等。 */
@@ -174,6 +175,8 @@ class ProfilerCocos {
     private _readDevice(): void {
         const d = this._device;
         if (!d) return;
+        // 注：device.numDrawCalls 是全局累计，包含 panel 自身渲染（≈1 文本 batch + 1 背景 = 2 drawcall）。
+        // 为了"统计精确"做扣除属于伪精确——CHAR atlas 跟业务字符共享时不增、独立时增 1，不可知；不扣保持一致性
         this._stat.draws = d.numDrawCalls;
         this._stat.instances = d.numInstances;
         this._stat.tris = d.numTris;
@@ -199,6 +202,7 @@ export function hideProfiler(): void {
 export function ensureEngineMetrics(): void {
     profilerCocos.ensureSetup();
 }
+
 
 let _toolbarBound = false;
 

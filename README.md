@@ -13,6 +13,7 @@
 - **输入透明**：覆写面板节点的 `UITransform.hitTest`，被覆盖的按钮可正常点
 - **跨场景持久挂载**：通过 `director.addPersistRootNode` 标记，切场景时引擎不销毁面板节点，无需重挂
 - **预览页 toolbar 联动**：自动监听 Cocos Creator 预览页 `Show FPS` 按钮的 click，点击即切换面板，无需业务侧显式接入
+- **Label CHAR 池化**：文本逐行用 Label + `cacheMode = CHAR`，多行 Label 共享字符 atlas batch 成单 drawcall，面板自身渲染开销稳定可预期
 - **持久化**：勾选状态存 `localStorage`，可换实现
 
 ## 兼容性
