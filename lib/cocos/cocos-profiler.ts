@@ -203,6 +203,7 @@ let _toolbarBound = false;
  * 联动 Cocos Creator 预览页 toolbar 的 "Show FPS" 按钮（#btn-show-fps，源自
  * builtin/preview/static/views/toolbar.ejs）：按下显示本面板，再按隐藏。
  * 仅在浏览器预览环境生效；非浏览器（jsb/native）或按钮不存在时静默跳过。幂等。
+ * module 顶层会自动调一次，业务侧无需显式调用；只要任意脚本 import 本 module 即生效。
  */
 export function bindPreviewToolbarToggle(): void {
     if (_toolbarBound) return;
@@ -211,11 +212,17 @@ export function bindPreviewToolbarToggle(): void {
     if (!btn) return;
     _toolbarBound = true;
 
-    let showing = btn.classList.contains('checked');
-    if (showing) showProfiler();
     btn.addEventListener('click', () => {
-        showing = !showing;
-        if (showing) showProfiler();
-        else hideProfiler();
+        if (profilerCocos.isShowing()) hideProfiler();
+        else showProfiler();
     });
+    // 按钮已是 checked：立即触发一次 show 把面板挂上（顶层 director.once(AFTER_UPDATE) 已保证 view 就绪）
+    if (btn.classList.contains('checked')) showProfiler();
 }
+
+// module 加载即自动联动 toolbar。任意场景脚本 import 本 module（含间接 import）
+// 都会触发顶层执行，集成层无需显式调用 bindPreviewToolbarToggle。
+// 延迟一帧（AFTER_UPDATE 触发一次）再 bind：module 加载时引擎可能刚跑完场景 launch，
+// view/screen 的 windowSize 尚未完成首次 resize，立刻 showProfiler 会让 Canvas alignWithScreen
+// 用错误的尺寸 → 首次面板渲染不出（要手动 hide+show 才正常）。等首帧 update 完，view 一定就绪。
+director.once(DirectorEvent.AFTER_UPDATE, bindPreviewToolbarToggle);
