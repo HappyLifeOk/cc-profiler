@@ -5,7 +5,7 @@
 // Cocos 适配层装配：director hook 采集引擎指标 + 驱动 core 采样 + 面板刷新 + 平台存储注入。
 // 业务层通过 showProfiler / hideProfiler 进出，不直接碰 core 渲染细节。
 
-import { director, DirectorEvent, gfx } from 'cc';
+import { director, DirectorEvent, gfx, profiler as engineProfiler } from 'cc';
 import { profiler } from '../core/registry';
 import { ProfilerPanel } from './panel';
 import { LocalStorageAdapter } from './local-storage';
@@ -39,6 +39,9 @@ class ProfilerCocos {
         this._last = this._fpsStart;
         this._panel.show();
         this._hook();
+        // 关引擎自带 fps 面板：toolbar Show FPS 按钮 click 会同时触发 cc.profiler.showStats 与本 listener，
+        // 不关掉会出现"原版 + 自定义面板"并排显示。引擎 11 项指标本面板已覆盖，无并存价值。
+        if (engineProfiler) engineProfiler.hideStats();
         profiler.markShowing(true);
     }
 
