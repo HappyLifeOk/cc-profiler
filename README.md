@@ -13,6 +13,7 @@
 - **输入透明**：覆写面板节点的 `UITransform.hitTest`，被覆盖的按钮可正常点
 - **跨场景持久挂载**：通过 `director.addPersistRootNode` 标记，切场景时引擎不销毁面板节点，无需重挂
 - **预览页 toolbar 联动**：自动监听 Cocos Creator 预览页 `Show FPS` 按钮的 click，点击即切换面板，无需业务侧显式接入
+- **全局静态开关**：`setProfilerEnabled(false)` 一键关，`showProfiler` / toolbar 联动均 noop、已显示也立即 hide。供 iframe 嵌入态宿主一行压住面板自启，无需跟 toolbar bind 抢时序
 - **Label CHAR 池化**：文本逐行用 Label + `cacheMode = CHAR`，多行 Label 共享字符 atlas batch 成单 drawcall，面板自身渲染开销稳定可预期
 - **持久化**：勾选状态存 `localStorage`，可换实现
 
@@ -36,7 +37,7 @@ import 'db://cc-profiler/cocos/cocos-profiler';
 
 ```ts
 import { profiler } from 'db://cc-profiler/core/registry';
-import { showProfiler, hideProfiler } from 'db://cc-profiler/cocos/cocos-profiler';
+import { showProfiler, hideProfiler, setProfilerEnabled } from 'db://cc-profiler/cocos/cocos-profiler';
 
 // 结构化指标
 profiler.register({
@@ -53,6 +54,10 @@ profiler.rawSection('net', () => `网络: ${connected ? '已连接' : '断开'}`
 
 showProfiler();   // 显示面板（自建挂载，无需传节点）
 hideProfiler();
+
+// 嵌入态宿主静态关闭整套面板（toolbar 自启 / show / GM 切换全部 noop，已显示也立即 hide）
+// 只要在 module 加载后、首帧 AFTER_UPDATE 触发前同步调一次，import 顺序就能保证时序
+setProfilerEnabled(false);
 ```
 
 ## 架构
