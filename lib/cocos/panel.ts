@@ -12,7 +12,7 @@ import {
 } from 'cc';
 import { Row } from '../core/metric';
 
-const PANEL_W = 360;   // 容器固定宽（含内边距）：按"标签 + 数值"最长行预留缓冲，避免数字波动时容器宽抖动
+const PANEL_W = 360;   // 容器固定宽（含内边距）：超长文字靠 Label.Overflow.SHRINK 自适应缩小字号，不溢出
 const LINE_H = 32;     // 行高
 const FONT = 24;       // 字号
 const PAD = 12;        // 内边距
@@ -92,11 +92,16 @@ export class ProfilerPanel {
         const rootUT = this._root.getComponent(UITransform);
         if (rootUT) rootUT.setContentSize(PANEL_W, h);
 
-        // 填内容 + 位置（Label anchor (0, 1)：position 是左上角；从顶向下依次排列）
+        // 填内容 + 位置 + 显式刷新 width（Label anchor (0, 1)：position 是左上角；从顶向下依次排列）
+        // 显式每帧设 Label width = PANEL_W - PAD*2：SHRINK 算法以此为基准算缩放比；
+        // 不设的话 Label 内部 layout 可能用初始或残留尺寸，导致 SHRINK 缩得过狠/不缩
+        const labelW = PANEL_W - PAD * 2;
         rows.forEach((r, i) => {
             const label = this._lines[i];
             label.string = r.text;
             label.color = r.warn ? COLOR_WARN : COLOR_NORMAL;
+            const lut = label.node.getComponent(UITransform);
+            if (lut) lut.setContentSize(labelW, LINE_H);
             label.node.setPosition(PAD, h - PAD - i * LINE_H, 0);
         });
 
@@ -171,6 +176,10 @@ export class ProfilerPanel {
         label.lineHeight = LINE_H;
         label.cacheMode = Label.CacheMode.CHAR;
         label.horizontalAlign = HorizontalTextAlignment.LEFT;
+        // 关掉 wrap：默认 enableWrapText=true 会让超宽行优先换行而不走 SHRINK；强制单行后 SHRINK 才会按比例缩字
+        label.enableWrapText = false;
+        // SHRINK：文字超过 contentSize 宽度时按比例缩小字号让单行容下，常规短行不触发缩小、字号恒定
+        label.overflow = Label.Overflow.SHRINK;
         label.string = '';
         return label;
     }
