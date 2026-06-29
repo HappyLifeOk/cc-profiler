@@ -188,8 +188,26 @@ class ProfilerCocos {
 /** 全局单例：业务接入层 import 同一个。 */
 export const profilerCocos = new ProfilerCocos();
 
-/** 显示性能面板（自建独立渲染层，无需宿主传节点）。 */
+/**
+ * 全局静态开关。关闭时：showProfiler 跳过、toolbar 联动按钮点击与启动自启均跳过；
+ * 若面板已显示则立即 hide。供嵌入态宿主（如引导编辑器）在 module 加载后、首帧 AFTER_UPDATE 触发前
+ * 同步调一次即可彻底压住面板出现；hideProfiler 仍可直接调用。
+ */
+let _enabled = true;
+
+export function setProfilerEnabled(on: boolean): void {
+    if (_enabled === on) return;
+    _enabled = on;
+    if (!on && profilerCocos.isShowing()) profilerCocos.hide();
+}
+
+export function isProfilerEnabled(): boolean {
+    return _enabled;
+}
+
+/** 显示性能面板（自建独立渲染层，无需宿主传节点）。被 setProfilerEnabled(false) 关闭后此调用 noop。 */
 export function showProfiler(): void {
+    if (!_enabled) return;
     profilerCocos.show();
 }
 
@@ -220,11 +238,12 @@ export function bindPreviewToolbarToggle(): void {
     _toolbarBound = true;
 
     btn.addEventListener('click', () => {
+        if (!_enabled) return;
         if (profilerCocos.isShowing()) hideProfiler();
         else showProfiler();
     });
     // 按钮已是 checked：立即触发一次 show 把面板挂上（顶层 director.once(AFTER_UPDATE) 已保证 view 就绪）
-    if (btn.classList.contains('checked')) showProfiler();
+    if (_enabled && btn.classList.contains('checked')) showProfiler();
 }
 
 // module 加载即自动联动 toolbar。任意场景脚本 import 本 module（含间接 import）
