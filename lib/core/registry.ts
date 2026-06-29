@@ -138,23 +138,49 @@ export class ProfilerRegistry {
         this._showing = on;
     }
 
-    /** 采样：遍历启用项累积。由驱动层（cocos director hook）降频调。 */
+    /**
+     * 采样：遍历启用项累积。由驱动层（cocos director hook）降频调。
+     * 单个 metric 的 get/provider 抛错（如业务侧场景未就绪访问 undefined.foo）单点跳过，
+     * 不连累其他 metric 的本帧采样；同一 (id, stage) 首次抛错 warn 一次，之后静默。
+     */
     public sample(now: number): void {
         this._entries.forEach((e) => {
             if (this._disabled.has(e.id)) return;
-            e.sample(now);
+            try {
+                e.sample(now);
+            } catch (err) {
+                this._reportMetricError(e.id, 'sample', err);
+            }
         });
     }
 
-    /** 产出渲染数据：启用项按 order 排序，跳过空文本。 */
+    /**
+     * 产出渲染数据：启用项按 order 排序，跳过空文本。
+     * 单个 metric 的 row 计算抛错单点跳过，本帧 rows 仍含其他项，面板不空白。
+     */
     public snapshot(): Row[] {
         const rows: Row[] = [];
         this._sorted().forEach((e) => {
             if (this._disabled.has(e.id)) return;
-            const r = e.row();
+            let r: Row;
+            try {
+                r = e.row();
+            } catch (err) {
+                this._reportMetricError(e.id, 'row', err);
+                return;
+            }
             if (r.text) rows.push(r);
         });
         return rows;
+    }
+
+    // 每个 (metric id, stage) 首次抛错 warn 一次，避免每帧刷屏；下次启动重新计入
+    private _erroredOnce = new Set<string>();
+    private _reportMetricError(id: string, stage: string, err: unknown): void {
+        const key = `${id}:${stage}`;
+        if (this._erroredOnce.has(key)) return;
+        this._erroredOnce.add(key);
+        console.warn(`[cc-profiler] metric "${id}" ${stage} threw, skipped; further errors on this metric will be silent:`, err);
     }
 
     private _sorted(): Entry[] {
