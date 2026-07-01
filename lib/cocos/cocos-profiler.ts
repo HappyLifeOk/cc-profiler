@@ -11,7 +11,7 @@ import { ProfilerPanel } from './panel';
 import { LocalStorageAdapter } from './local-storage';
 
 const { deviceManager } = gfx;
-const REFRESH_MS = 500;   // 面板文本刷新 / fps 统计窗口
+const REFRESH_MS = 1000;   // 面板文本刷新 / fps 统计窗口
 const MB = 1024 * 1024;
 
 /** 引擎指标采集 + 驱动 + 面板。耗时类指标靠 director hook 间时间差，闭包喂给 core。 */
