@@ -28,5 +28,11 @@
         "readonly": true
       }
     }
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js"
   }
 }
