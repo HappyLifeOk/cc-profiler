@@ -6,6 +6,8 @@ export namespace ScreenLogDefine {
     export type ConsoleMethod = (...args: unknown[]) => void;
     /** 宿主日志规则：返回 false 时不采集，不影响原控制台输出。 */
     export type ConsoleFilter = (level: Level, args: readonly unknown[]) => boolean;
+    /** 宿主提供日志源时，ScreenLog 仅订阅，不再包装 console。 */
+    export type ConsoleObserver = (listener: (level: Level, args: readonly unknown[]) => void) => () => void;
     /** 展示过滤不影响缓冲中的记录。 */
     export type Severity = 'all' | 'warning' | 'error';
     /** 内存上限与格式化上限，防止真机诊断无限增长。 */

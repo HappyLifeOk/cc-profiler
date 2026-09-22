@@ -29,28 +29,34 @@ export class ScreenLog {
     get clearVersion(): number { return this._clearVersion; }
 
     /** 只在用户开启面板后包装控制台，重复调用不叠加；宿主可注入过滤策略，默认采集全部输出。 */
-    start(acceptConsole?: D.ConsoleFilter): void {
+    start(acceptConsole?: D.ConsoleFilter, observeConsole?: D.ConsoleObserver): void {
         if (this._enabled) return;
         this.clear();
         this.paused = false;
         this._enabled = true;
         const generation = ++this._generation;
+        const capture = (level: D.Level, args: readonly unknown[]): void => {
+            if (!this.enabled || this.paused || this._generation !== generation || this._capturing) return;
+            this._capturing = true;
+            try {
+                if (acceptConsole && !acceptConsole(level, args)) return;
+                this.append('console', level, ScreenLog.format(args));
+            } catch {
+                // 诊断失败只跳过本条采集，不影响业务，也不递归打印。
+            } finally {
+                this._capturing = false;
+            }
+        };
+        if (observeConsole) {
+            this._restore.push(observeConsole(capture));
+            return;
+        }
         for (const level of D.LEVELS) {
             const original = console[level];
             if (typeof original !== 'function') continue;
-            const log = this;
             const hook: D.ConsoleMethod = function (this: Console, ...args): void {
                 original.apply(this, args);
-                if (!log.enabled || log.paused || log._generation !== generation || log._capturing) return;
-                log._capturing = true;
-                try {
-                    if (acceptConsole && !acceptConsole(level, args)) return;
-                    log.append('console', level, ScreenLog.format(args));
-                } catch {
-                    // 诊断失败只跳过本条采集，不影响业务，也不再打印以免递归。
-                } finally {
-                    log._capturing = false;
-                }
+                capture(level, args);
             };
             console[level] = hook;
             this._restore.push(() => {
